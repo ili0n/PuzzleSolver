@@ -1,5 +1,6 @@
 import requests
 import torch
+import torchmetrics.functional
 from PIL import Image
 from transformers.models.vit.image_processing_vit import ViTImageProcessor
 from transformers import ViTForImageClassification, EvalPrediction, ViTModel, ViTConfig, Trainer
@@ -8,11 +9,17 @@ from evaluate import load
 import numpy as np
 import urllib.parse as parse
 import os
+from torchmetrics import ExtendedEditDistance
 from datasets import load_dataset
 from transformers import TrainingArguments
+from torchinfo import summary
+import torch.nn as nn
+from Levenshtein import distance
 
+from MLPHead import MLPHead
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
+print(device)
 in_channels = 3
 
 # %%
@@ -53,8 +60,6 @@ image_processor = ViTImageProcessor.from_pretrained(model_name)
 #     output = model(pixel_values)
 #     # get the label id and return the class name
 #     return model.config.id2label[int(output.logits.softmax(dim=1).argmax())]
-
-
 
 
 # load the custom dataset
@@ -110,9 +115,13 @@ def compute_metrics(eval_pred):
     # compute the accuracy and f1 scores & return them
     accuracy_score = accuracy.compute(predictions=np.argmax(eval_pred.predictions, axis=1),
                                       references=eval_pred.label_ids)
-    f1_score = f1.compute(predictions=np.argmax(eval_pred.predictions, axis=1), references=eval_pred.label_ids,
-                          average="macro")
-    return {**accuracy_score, **f1_score}
+    # f1_score = f1.compute(predictions=np.argmax(eval_pred.predictions, axis=1), references=eval_pred.label_ids,
+    #                       average="macro")
+    # return {**accuracy_score, **f1_score}
+    score = []
+    for i in range(eval_pred.predictions):
+        score.append(distance(eval_pred.predictions[i], eval_pred.label_ids[i]))
+    return {**accuracy_score, **score}
 
 
 # # Training the Model
@@ -128,30 +137,46 @@ def compute_metrics(eval_pred):
 # )
 
 config = ViTConfig.from_pretrained(model_name)
-config.patch_size = config.image_size//4
+config.patch_size = config.image_size // 4
 config.in_channels = in_channels
 config.label2id = {str(i): c for i, c in enumerate(labels)}
 config.id2label = {str(i): c for i, c in enumerate(labels)}
-model = ViTForImageClassification.from_pretrained(model_name, config=config,ignore_mismatched_sizes=True).to(device)
+model = ViTForImageClassification.from_pretrained(model_name, config=config, ignore_mismatched_sizes=True).to(device)
 
+
+input_dim = 768
+output_dim = 16  # Number of classes in the classification task
+summary(model,(32,3,224,224))
+# for param in model.parameters():
+#     param.requires_grad = False
+
+# Create the new MLP head
+mlp_head = MLPHead(input_dim, output_dim)
+
+model.head = mlp_head
+
+
+
+# model = ViTForImageClassification.from_pretrained(f"./vit-base-catjig/checkpoint-850").to(device)
 
 training_args = TrainingArguments(
     output_dir="./vit-base-catjig",  # output directory
     per_device_train_batch_size=32,  # batch size per device during training
     evaluation_strategy="steps",  # evaluation strategy to adopt during training
-    num_train_epochs=3,  # total number of training epochs
+    num_train_epochs=1,  # total number of training epochs
     # fp16=True,                    # use mixed precision
     # save_steps=1000,  # number of update steps before saving checkpoint
     # eval_steps=1000,  # number of update steps before evaluating
     # logging_steps=1000,  # number of update steps before logging
-    save_steps=50,
-    eval_steps=50,
-    logging_steps=50,
+    save_steps=100,
+    eval_steps=10,
+    logging_steps=10,
     save_total_limit=2,  # limit the total amount of checkpoints on disk
     remove_unused_columns=False,  # remove unused columns from the dataset
     push_to_hub=False,  # do not push the model to the hub
     report_to='tensorboard',  # report metrics to tensorboard
     load_best_model_at_end=True,  # load the best model at the end of training
+
 
 )
 
@@ -174,7 +199,7 @@ trainer.train()
 
 # %%
 trainer.evaluate()
-trainer.evaluate(dataset["test"])
+# trainer.evaluate(dataset["test"])
 
 
 # %%
