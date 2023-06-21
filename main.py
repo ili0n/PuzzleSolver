@@ -15,6 +15,7 @@ from transformers import TrainingArguments
 from torchinfo import summary
 import torch.nn as nn
 from Levenshtein import distance
+from MLPHeadRL import CustomFFN
 
 from MLPHead import MLPHead
 
@@ -115,13 +116,13 @@ def compute_metrics(eval_pred):
     # compute the accuracy and f1 scores & return them
     accuracy_score = accuracy.compute(predictions=np.argmax(eval_pred.predictions, axis=1),
                                       references=eval_pred.label_ids)
-    # f1_score = f1.compute(predictions=np.argmax(eval_pred.predictions, axis=1), references=eval_pred.label_ids,
-    #                       average="macro")
-    # return {**accuracy_score, **f1_score}
-    score = []
-    for i in range(eval_pred.predictions):
-        score.append(distance(eval_pred.predictions[i], eval_pred.label_ids[i]))
-    return {**accuracy_score, **score}
+    f1_score = f1.compute(predictions=np.argmax(eval_pred.predictions, axis=1), references=eval_pred.label_ids,
+                          average="macro")
+    return {**accuracy_score, **f1_score}
+    # score = []
+    # for i in range(eval_pred.predictions):
+    #     score.append(distance(eval_pred.predictions[i], eval_pred.label_ids[i]))
+    # return {**accuracy_score, **score}
 
 
 # # Training the Model
@@ -137,25 +138,44 @@ def compute_metrics(eval_pred):
 # )
 
 config = ViTConfig.from_pretrained(model_name)
-config.patch_size = config.image_size // 4
+config.patch_size = 16
 config.in_channels = in_channels
 config.label2id = {str(i): c for i, c in enumerate(labels)}
 config.id2label = {str(i): c for i, c in enumerate(labels)}
-model = ViTForImageClassification.from_pretrained(model_name, config=config, ignore_mismatched_sizes=True).to(device)
+model = ViTForImageClassification.from_pretrained(model_name, config=config, ignore_mismatched_sizes=True)
+
+grad_count = 0
+
+for name, param in model.named_parameters():
+    if grad_count == 0:
+        grad_count+=1
+        continue
+    if param.requires_grad:
+        param.requires_grad_(False)
+
+print("Grad count: " + str( grad_count))
 
 
 input_dim = 768
 output_dim = 16  # Number of classes in the classification task
-summary(model,(32,3,224,224))
-# for param in model.parameters():
-#     param.requires_grad = False
+summary(model, (32, 3, 224, 224))
 
-# Create the new MLP head
-mlp_head = MLPHead(input_dim, output_dim)
+# for name, module in model.named_modules():
+#     if isinstance(module,torch.nn.Module):
+#         print(name)
+#
+# # for param in model.parameters():
+# #     param.requires_grad = False
+#
+# # Create the new MLP head
+# mlp_head = MLPHead(input_dim, output_dim)
+model.mlp_head = CustomFFN(config.hidden_size,config.patch_size)
 
-model.head = mlp_head
-
-
+# model.head = mlp_head
+model.to(device)
+for name, module in model.named_modules():
+    if isinstance(module,torch.nn.Module):
+        print(name)
 
 # model = ViTForImageClassification.from_pretrained(f"./vit-base-catjig/checkpoint-850").to(device)
 
@@ -163,20 +183,19 @@ training_args = TrainingArguments(
     output_dir="./vit-base-catjig",  # output directory
     per_device_train_batch_size=32,  # batch size per device during training
     evaluation_strategy="steps",  # evaluation strategy to adopt during training
-    num_train_epochs=1,  # total number of training epochs
+    num_train_epochs=40,  # total number of training epochs
     # fp16=True,                    # use mixed precision
     # save_steps=1000,  # number of update steps before saving checkpoint
     # eval_steps=1000,  # number of update steps before evaluating
     # logging_steps=1000,  # number of update steps before logging
-    save_steps=100,
-    eval_steps=10,
-    logging_steps=10,
+    save_steps=1000,
+    eval_steps=1000,
+    logging_steps=200,
     save_total_limit=2,  # limit the total amount of checkpoints on disk
     remove_unused_columns=False,  # remove unused columns from the dataset
     push_to_hub=False,  # do not push the model to the hub
     report_to='tensorboard',  # report metrics to tensorboard
     load_best_model_at_end=True,  # load the best model at the end of training
-
 
 )
 
@@ -199,6 +218,10 @@ trainer.train()
 
 # %%
 trainer.evaluate()
+
+
+
+
 # trainer.evaluate(dataset["test"])
 
 
