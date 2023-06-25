@@ -15,6 +15,8 @@ from transformers import TrainingArguments
 from torchinfo import summary
 import torch.nn as nn
 from Levenshtein import distance
+
+import CustomLoss
 from MLPHeadRL import CustomFFN
 
 from MLPHead import MLPHead
@@ -183,7 +185,7 @@ training_args = TrainingArguments(
     output_dir="./vit-base-catjig",  # output directory
     per_device_train_batch_size=32,  # batch size per device during training
     evaluation_strategy="steps",  # evaluation strategy to adopt during training
-    num_train_epochs=40,  # total number of training epochs
+    num_train_epochs=25,  # total number of training epochs
     # fp16=True,                    # use mixed precision
     # save_steps=1000,  # number of update steps before saving checkpoint
     # eval_steps=1000,  # number of update steps before evaluating
@@ -210,7 +212,11 @@ trainer = Trainer(
     train_dataset=dataset["train"],  # training dataset
     eval_dataset=dataset["validation"],  # evaluation dataset
     tokenizer=image_processor,  # the processor that will be used for preprocessing the images
+
 )
+loss_fn = CustomLoss.CustomLoss()
+trainer.compute_loss = lambda model, inputs, labels: loss_fn(model(inputs), labels)
+
 print("training")
 # %%
 # start training
