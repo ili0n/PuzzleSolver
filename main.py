@@ -17,6 +17,8 @@ import torch.nn as nn
 from Levenshtein import distance
 
 import CustomLoss
+
+from CustomTrainer import MyTrainer
 from MLPHeadRL import CustomFFN
 
 from MLPHead import MLPHead
@@ -204,7 +206,7 @@ training_args = TrainingArguments(
 # %%
 
 
-trainer = Trainer(
+trainer = MyTrainer(
     model=model,  # the instantiated 🤗 Transformers model to be trained
     args=training_args,  # training arguments, defined above
     data_collator=collate_fn,  # the data collator that will be used for batching
@@ -215,7 +217,6 @@ trainer = Trainer(
 
 )
 loss_fn = CustomLoss.CustomLoss()
-trainer.compute_loss = lambda model, inputs, labels: loss_fn(model(inputs), labels)
 
 print("training")
 # %%
