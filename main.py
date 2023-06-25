@@ -143,7 +143,6 @@ def compute_metrics(eval_pred):
 
 config = ViTConfig.from_pretrained(model_name)
 config.patch_size = 224//4
-config.in_channels = in_channels
 config.label2id = {str(i): c for i, c in enumerate(labels)}
 config.id2label = {str(i): c for i, c in enumerate(labels)}
 model = ViTForImageClassification.from_pretrained(model_name, config=config, ignore_mismatched_sizes=True)
