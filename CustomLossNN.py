@@ -2,18 +2,18 @@ import torch
 import torch.nn as nn
 
 
-class CustomLoss(nn.Module):
+class CustomLossNN(nn.Module):
     def __init__(self):
-        super(CustomLoss, self).__init__()
+        super(CustomLossNN, self).__init__()
         self.criterion = nn.CrossEntropyLoss()
 
     def forward(self, logits, targets):
-        batch_size, num_patches, num_classes = logits.size()
-        loss = self.criterion(logits.view(batch_size * num_patches, num_classes), targets.view(-1))
+        batch_size, num_patches = logits.size()
+        loss = self.criterion(logits,targets)
 
         # Reshape logits and targets to group patches by images
-        logits_grouped = logits.view(batch_size, num_patches, num_classes)
-        targets_grouped = targets.view(batch_size, num_patches)
+        logits_grouped = logits.view(batch_size, num_patches, -1)
+        targets_grouped = targets.view(batch_size, -1)
 
         # Apply penalty for repeated tags within each image
         for i in range(batch_size):

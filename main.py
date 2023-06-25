@@ -16,7 +16,7 @@ from torchinfo import summary
 import torch.nn as nn
 from Levenshtein import distance
 
-import CustomLoss
+import CustomLossNN
 
 from CustomTrainer import MyTrainer
 from MLPHeadRL import CustomFFN
@@ -142,7 +142,7 @@ def compute_metrics(eval_pred):
 # )
 
 config = ViTConfig.from_pretrained(model_name)
-config.patch_size = 16
+config.patch_size = 224//4
 config.in_channels = in_channels
 config.label2id = {str(i): c for i, c in enumerate(labels)}
 config.id2label = {str(i): c for i, c in enumerate(labels)}
@@ -192,9 +192,9 @@ training_args = TrainingArguments(
     # save_steps=1000,  # number of update steps before saving checkpoint
     # eval_steps=1000,  # number of update steps before evaluating
     # logging_steps=1000,  # number of update steps before logging
-    save_steps=1000,
-    eval_steps=1000,
-    logging_steps=200,
+    save_steps=10,
+    eval_steps=10,
+    logging_steps=10,
     save_total_limit=2,  # limit the total amount of checkpoints on disk
     remove_unused_columns=False,  # remove unused columns from the dataset
     push_to_hub=False,  # do not push the model to the hub
@@ -216,7 +216,6 @@ trainer = MyTrainer(
     tokenizer=image_processor,  # the processor that will be used for preprocessing the images
 
 )
-loss_fn = CustomLoss.CustomLoss()
 
 print("training")
 # %%
