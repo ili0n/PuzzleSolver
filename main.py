@@ -143,6 +143,7 @@ def compute_metrics(eval_pred):
 
 config = ViTConfig.from_pretrained(model_name)
 config.patch_size = 224//4
+config.num_labels = 16
 config.label2id = {str(i): c for i, c in enumerate(labels)}
 config.id2label = {str(i): c for i, c in enumerate(labels)}
 model = ViTForImageClassification.from_pretrained(model_name, config=config, ignore_mismatched_sizes=True)
@@ -186,14 +187,14 @@ training_args = TrainingArguments(
     output_dir="./vit-base-catjig",  # output directory
     per_device_train_batch_size=32,  # batch size per device during training
     evaluation_strategy="steps",  # evaluation strategy to adopt during training
-    num_train_epochs=25,  # total number of training epochs
+    num_train_epochs=40,  # total number of training epochs
     # fp16=True,                    # use mixed precision
     # save_steps=1000,  # number of update steps before saving checkpoint
     # eval_steps=1000,  # number of update steps before evaluating
     # logging_steps=1000,  # number of update steps before logging
-    save_steps=10,
-    eval_steps=10,
-    logging_steps=10,
+    save_steps=1000,
+    eval_steps=1000,
+    logging_steps=500,
     save_total_limit=2,  # limit the total amount of checkpoints on disk
     remove_unused_columns=False,  # remove unused columns from the dataset
     push_to_hub=False,  # do not push the model to the hub
